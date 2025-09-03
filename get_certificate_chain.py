@@ -451,6 +451,48 @@ def save_chain_pem(certs: Sequence[x509.Certificate], *, prefix: str = "chain") 
         paths.append(fn)
     return paths
 
+def get_cert_chain(url, formatted=False):
+    chain, completed = build_chain_from_url_using_local_store(url, timeout=5)
+
+    rows = summarize_chain(chain)
+
+    # Formatting output
+    data = []
+    output = []
+    headers = ['index', 'commonName', 'Issuer', 'Not Before', 'Not After', 'Status']
+    for r in rows:
+        if formatted:
+            cert = (
+                f'[{r.index}]', 
+                f'{r.subject_cn!s}', 
+                f'{r.issuer_cn!s}',
+                r.not_before.date().isoformat(),
+                r.not_after.date().isoformat(),
+                f"{'(self-signed)' if r.self_signed else 'Trusted'}"
+            )
+            data.append(cert)
+        else:
+            output.append((f"[{r.index}] commonName: {r.subject_cn!s} Issuer: {r.issuer_cn!s} Valid From: {r.not_before.date()} Valid To: {r.not_after.date()} Status: {'(self-signed)' if r.self_signed else 'Trusted'}"))
+
+    if formatted:
+        rows = [headers] + [(i, s, p, b, a, v) for i, s, p, b, a, v in data]
+        cols = list(zip(*rows))
+
+        COLUMN_SLACK = 2
+        widths = [max(len(x)+COLUMN_SLACK for x in col) for col in cols]
+        fmt = f"{{:<{widths[0]}}}{{:<{widths[1]}}}{{:<{widths[2]}}}{{:<{widths[3]}}}{{:<{widths[4]}}}{{:>{widths[5]}}}"
+        output.append(fmt.format(*headers))
+        output.append("-"*widths[0] + "-"*widths[1] + "-"*widths[2] + "-"*widths[3] + "-"*widths[4] + "-"*widths[5])
+        for r in rows[1:]:
+            output.append(fmt.format(*r))
+
+    print(output)
+    return output
+
+def print_cert_chain(url, formatted=True):
+    chain = get_cert_chain(url)
+    for cert in chain:
+        print({cert})
 
 # --------------------------------------------------------------------------------------
 # Optional CLI for quick manual checks
